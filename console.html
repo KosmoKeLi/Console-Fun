@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <style>
+      html, body {
+        background-color: #000;
+        font-family: Courier New;
+      }
+
+      @keyframes blinker {  
+        50% { opacity: 0; }
+      }
+
+      pre {
+        color: lime;
+        text-shadow:  -2px -2px 4px green,
+                       2px -2px 4px green,
+                       2px  2px 4px green,
+                      -2px  2px 4px green;
+      }
+
+      pre:after {
+        content: '_';
+        animation: blinker 1s linear infinite;
+      }
+  </style>
+</head>
+<body>
+  <pre>$ </pre>
+
+  <script type="text/javascript">
+    var el = document.querySelector('body > pre')
+    var writeDelayBaseValue = 100;
+    var writeDelay = writeDelayBaseValue;
+    var commandStart = ['$', ' '];
+    var consoleBuffer = [];
+    var commandBufferSize = 36;
+    var commandBuffer = [];
+    var commands = {
+      hi: function () {
+        writeLine('Hello to you!');
+      },
+      time: function () {
+        writeLine(new Date().toString());
+      },
+      make: function (args) {
+        writeLine('make: Don\'t know how to make ' + (args[0] ? args[0] : 'all') + '. Stop.');
+      },
+      clock: function (args) {
+        writeDelay = writeDelayBaseValue / args[0];
+        writeLine('Computer clocked (' + args[0] + ').', true);
+      },
+      color: function (args) {
+        if (!args[0]) {
+          writeLine('Missing arguments 1: hex color (eg. #F0F0F0).');
+          return;
+        }
+
+        var color = args[0];
+        var shaded = shadeColor2(color);
+        var textColor = 'color: ' + color;
+        var textShadow = 'text-shadow:  -2px -2px 4px ' + shaded + ', 2px -2px 4px ' + shaded + ', 2px  2px 4px ' + shaded + ', -2px  2px 4px ' + shaded + ';'
+        var style = [textColor, textShadow];
+
+        el.style = style.join(';');
+
+        writeLine('Text color changed to: ' + color);
+      }
+    }
+
+    function pushCommandStart() {
+      for (var i = 0; i < commandStart.length; i++)
+        consoleBuffer.push(commandStart[i]);
+    }
+
+    function writeRaw(text, newLine, callback = undefined) {
+      var pos = 0;
+
+      var intervalId = setInterval(function () {
+        if (text) {
+          var char = text[pos];
+
+          consoleBuffer.push(char);
+          render();
+        }
+
+        pos++;
+
+        if (pos >= text.length) {
+          clearInterval(intervalId);
+
+          if (newLine) {
+            consoleBuffer.push('\r')
+            consoleBuffer.push('\n');
+            pushCommandStart();
+            render();
+          }
+
+          if (callback) callback();
+        };
+      }, writeDelay);       
+    }
+
+    function write(text) {
+      writeRaw(text, false);
+    }
+
+    function writeLine(text) {
+      writeRaw(text, true);
+    }
+
+    function render() {
+      el.textContent = consoleBuffer.join('');
+    }
+
+    function pushBuffer(char) {
+      commandBuffer.push(char);
+    }
+
+    function popBuffer() {
+      if (commandBuffer.length > 0) consoleBuffer.splice(consoleBuffer.length - 1, 1);
+      commandBuffer.splice(commandBuffer.length - 1, 1);
+      render();
+    }
+
+    function bufferFull() {
+      return commandBuffer.length === commandBufferSize;
+    }
+
+    function executeBuffer() {
+      var commandLine = commandBuffer.join('');
+      var commandSegments = commandLine.split(' ');
+      var command = commandSegments[0];
+
+      commandSegments.splice(0, 1);
+
+      writeRaw('\r\n', false, function () {
+        if (commands[command])
+          commands[command](commandSegments);
+        else
+          writeRaw('Invalid command.', true); 
+
+        commandBuffer = [];
+      });
+    }
+
+    function isValidKey(keyCode) {
+      return  (keyCode > 47 && keyCode < 58)   || // number keys
+              keyCode == 32 || keyCode == 13   || // spacebar & return key(s) (if you want to allow carriage returns)
+              (keyCode > 64 && keyCode < 91)   || // letter keys
+              (keyCode > 95 && keyCode < 112)  || // numpad keys
+              (keyCode > 185 && keyCode < 193) || // ;=,-./` (in order)
+              (keyCode > 218 && keyCode < 223);   // [\]' (in order)
+    }
+
+    function shadeColor2(color, percent) {   
+        var f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+        return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+    }
+
+    pushCommandStart();
+
+    document.addEventListener('keydown', function (e) {
+        e = e || window.event;
+        console.log(e);
+
+        switch (e.keyCode) {
+          case 8:
+            popBuffer();
+          break;
+          case 13:
+            executeBuffer();  
+          break;
+          default:
+            if (!bufferFull() && isValidKey(e.keyCode)) {
+              pushBuffer(e.key);
+              write(e.key, false);
+            }
+          break;
+        }
+    });
+
+    commands.clock([5]);
+  </script>
+</body>
+</html>
+
+
